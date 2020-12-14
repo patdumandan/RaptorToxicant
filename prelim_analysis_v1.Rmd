@@ -1,0 +1,55 @@
+---
+title: "Raptor Toxicant Preliminary Analysis"
+author: "Pat Dumandan"
+date: "12/10/2020"
+output: html_document
+---
+```{r setup, include=FALSE, message=FALSE, echo=FALSE, warning=FALSE}
+require(dplyr)
+require(rstan)
+require(rstanarm)
+
+options(mc.cores = parallel::detectCores())
+
+tox=read.csv("prax_sheet.csv")
+str(tox)
+```
+
+### Data Cleaning
+```{r, message=FALSE, echo=FALSE, warning=FALSE}
+tox_conc=tox%>%
+rename(proportion=OR.if.given..proportion.exposed,concentration=concentration..ND.for.non.detects. )%>%
+filter(!is.na(concentration))%>%
+arrange(ID)
+
+unique(tox_conc$toxicant.group)
+```
+*Q for Vince: 1) what are PFAs, Os, unknowns?, 2) how is metal and heavy metal dfferent? *
+
+### Analysis Plan  
+
+#### Part 1: Toxicant-specific  
+*assess how toxicant concentrations vary per country, species, feeding trait, etc.*  
+
+Steps:  
+  * identify the most common/ most studied specific toxicant per main toxicant group (also identify what sample type collected)   
+  * standardize values across all studies
+  * create forest plot of top toxicant specific concentrations  
+  * create mixed-effects model with intercept allowed to vary per study, species, country   
+  
+
+#### Example: Heavy Metals
+
+```{r, message=FALSE, echo=FALSE, warning=FALSE}
+met=c("heavy metals", "metal")
+metal=tox_conc%>%
+  filter(toxicant.group %in% met)%>%
+  group_by (toxicant.specific, sample.type)%>%
+  summarise(count=n())%>%
+  arrange(count)
+```
+**Pb (Lead) in liver is most well-studied**  
+
+```{r, message=FALSE, echo=FALSE, warning=FALSE}
+
+```
