@@ -8,6 +8,8 @@ output: html_document
 require(dplyr)
 require(rstan)
 require(rstanarm)
+require(metafor)
+require(metaviz)
 
 options(mc.cores = parallel::detectCores())
 
@@ -18,13 +20,13 @@ str(tox)
 ### Data Cleaning
 ```{r, message=FALSE, echo=FALSE, warning=FALSE}
 tox_conc=tox%>%
-rename(proportion=OR.if.given..proportion.exposed,concentration=concentration..ND.for.non.detects. )%>%
+rename(proportion=OR.if.given..proportion.exposed,concentration=concentration..ND.for.non.detects., species=Species..English.name. )%>%
 filter(!is.na(concentration))%>%
 arrange(ID)
 
 unique(tox_conc$toxicant.group)
 ```
-*Q for Vince: 1) what are PFAs, Os, unknowns?, 2) how is metal and heavy metal dfferent? *
+*Q for Vince: 1) what are PFAs, Os, unknowns?, 2) how is metal and heavy metal different? 3) Why is the length of species english name and scientific name not equal? *
 
 ### Analysis Plan  
 
@@ -35,21 +37,70 @@ Steps:
   * identify the most common/ most studied specific toxicant per main toxicant group (also identify what sample type collected)   
   * standardize values across all studies
   * create forest plot of top toxicant specific concentrations  
-  * create mixed-effects model with intercept allowed to vary per study, species, country   
-  
+  * create mixed-effects model with intercept allowed to vary per study and species  
+  * other descriptive stats (most studied species, country per toxicant type, etc.)
 
-#### Example: Heavy Metals
-
+#### Example: Heavy Metals (concentration)
+*assess how the amount of toxicant (concnetration) varies across species, country, and maybe other species traits?*
 ```{r, message=FALSE, echo=FALSE, warning=FALSE}
 met=c("heavy metals", "metal")
-metal=tox_conc%>%
+metal_n=tox_conc%>%
   filter(toxicant.group %in% met)%>%
   group_by (toxicant.specific, sample.type)%>%
   summarise(count=n())%>%
   arrange(count)
+Pb_n=tox_conc%>%
+  filter(toxicant.specific=="Pb", sample.type=="liver")%>%
+  group_by (species)%>%
+  summarise(count=n())%>%
+  arrange(count)
 ```
-**Pb (Lead) in liver is most well-studied**  
+**Pb (Lead) in liver is most well-studied, most well-studied species is Common Buzzard (n=4)**   
 
+```{r}
+#standardize values of Pb in liver
+#  1 ug/g = 1 mg/kg; 1 ppm = 1 mg/kg 
+estim_mean=c("arithmetic mean", "not specified", "n=1")
+
+Pb_conc_liver=tox_conc%>%
+  mutate(concentration=as.numeric(as.character(concentration)),
+         subject=ifelse(subject.type=="wild", 0, 1),
+         ID=as.character(ID))%>%
+  filter(toxicant.specific=="Pb",sample.type=="liver", wet.dry.weight.=="dry", !is.na(concentration), concentration.level.estimate.type %in% estim_mean)
+
+Pb_conc_all=tox_conc%>%
+  mutate(concentration=as.numeric(as.character(concentration)),
+         subject=ifelse(subject.type=="wild", 0, 1),
+         ID=as.character(ID))%>%
+  filter(toxicant.specific=="Pb", wet.dry.weight.=="dry", !is.na(concentration))
+
+```
+*Q for Vince: 1) what's a good resource for the correction factors per sample type (Pb/AR/OC in liver, blood,etc)? 2) is it a correct assumption that species in the wild would have lower concnetrations of toxicant and can be our baseline for subject type(set as 0)?*
+
+```{r}
+#Gamma distribution 
+Pb_eff=stan_glmer(concentration~country+subject.type+(1|species)+(1|ID), data=Pb_conc_liver, family=Gamma(link = "inverse"), chains=2, iter=300)
+```
+*Q for Vince: 1) should we have latitude as an explanatory variable instead of country?, 2) should we set the priors for this? (i.e. Monclus et al. 2020 paper), 3) are we still interested in knowing the effect of mass and other traits (like feeding trait) on the concentration levels? (if yes, might need help collating data for that (already have the EltonTraits database but just need help adding it on the database)*
+
+### Part 2: Species-specific  
+**Proportion of species exposed to toxicant** 
+*assess how the proportion of exposed individuals of a given species varies across different toxicant types*  
+
+#### Analysis Plan:  
+* identify what is the top toxicant affecting all species  
+* identify the most well-studied species  
 ```{r, message=FALSE, echo=FALSE, warning=FALSE}
+met=c("heavy metals", "metal")
+metal_n=tox_conc%>%
+  filter(toxicant.group %in% met)%>%
+  group_by (toxicant.specific, sample.type)%>%
+  summarise(count=n())%>%
+  arrange(count)
+Pb_n=tox_conc%>%
+  filter(toxicant.specific=="Pb", sample.type=="liver")%>%
+  group_by (species)%>%
+  summarise(count=n())%>%
+  arrange(count)
 
 ```
