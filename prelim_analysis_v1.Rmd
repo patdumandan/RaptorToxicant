@@ -13,14 +13,14 @@ require(metaviz)
 
 options(mc.cores = parallel::detectCores())
 
-tox=read.csv("prax_sheet.csv")
-str(tox)
+tox=read.csv("prax_sheet2.csv")
 ```
 
 ### Data Cleaning
 ```{r, message=FALSE, echo=FALSE, warning=FALSE}
 tox_conc=tox%>%
 rename(proportion=OR.if.given..proportion.exposed,concentration=concentration..ND.for.non.detects., species=Species..English.name. )%>%
+  mutate(concentration=as.numeric(as.character(concentration)))%>%
 filter(!is.na(concentration))%>%
 arrange(ID)
 
@@ -28,9 +28,47 @@ unique(tox_conc$toxicant.group)
 ```
 *Q for Vince: 1) what are PFAs, Os, unknowns?, 2) how is metal and heavy metal different? 3) Why is the length of species english name and scientific name not equal? *
 
-### Analysis Plan  
+### Analysis  
 
-#### Part 1: Toxicant-specific  
+### Part 1: Overall Toxicant Exposure  
+**Proportion exposed to toxicants** 
+*assess how the proportion of exposed individuals varies across species, different toxicant types, sample type*  
+Steps:  
+* calculate proportion of individuals per species exposed to different toxicants
+* build beta regression model with intercepts allowed to vary per study, fixed effects of species, toxicant type,sample type, and geographical region (maybe traits too?) 
+
+```{r, message=FALSE, echo=FALSE, warning=FALSE}
+tox_prop1=tox%>%
+rename(proportion=OR.if.given..proportion.exposed, species=Species..English.name.)%>%
+  filter(!is.na(proportion))%>%
+  mutate(exposed=(proportion*sample.size))
+
+tox_prop2=tox%>%
+rename(species=Species..English.name., exposed=no..exposed)%>%
+  filter(!is.na(sample.size), !is.na(exposed))%>%
+  mutate(proportion=exposed/sample.size)
+
+
+tox_prop3=rbind(tox_prop1, tox_prop2)
+
+length(unique(tox_prop$ID)) #16 studies that reported sample size and exposure
+
+
+
+met=c("heavy metals", "metal")
+metal_n=tox_conc%>%
+  filter(toxicant.group %in% met)%>%
+  group_by (toxicant.specific, sample.type)%>%
+  summarise(count=n())%>%
+  arrange(count)
+Pb_n=tox_conc%>%
+  filter(toxicant.specific=="Pb", sample.type=="liver")%>%
+  group_by (species)%>%
+  summarise(count=n())%>%
+  arrange(count)
+
+```
+#### Part 2: Toxicant-specific  
 *assess how toxicant concentrations vary per country, species, feeding trait, etc.*  
 
 Steps:  
@@ -82,25 +120,3 @@ Pb_conc_all=tox_conc%>%
 Pb_eff=stan_glmer(concentration~country+subject.type+(1|species)+(1|ID), data=Pb_conc_liver, family=Gamma(link = "inverse"), chains=2, iter=300)
 ```
 *Q for Vince: 1) should we have latitude as an explanatory variable instead of country?, 2) should we set the priors for this? (i.e. Monclus et al. 2020 paper), 3) are we still interested in knowing the effect of mass and other traits (like feeding trait) on the concentration levels? (if yes, might need help collating data for that (already have the EltonTraits database but just need help adding it on the database)*
-
-### Part 2: Species-specific  
-**Proportion of species exposed to toxicant** 
-*assess how the proportion of exposed individuals of a given species varies across different toxicant types*  
-
-#### Analysis Plan:  
-* identify what is the top toxicant affecting all species  
-* identify the most well-studied species  
-```{r, message=FALSE, echo=FALSE, warning=FALSE}
-met=c("heavy metals", "metal")
-metal_n=tox_conc%>%
-  filter(toxicant.group %in% met)%>%
-  group_by (toxicant.specific, sample.type)%>%
-  summarise(count=n())%>%
-  arrange(count)
-Pb_n=tox_conc%>%
-  filter(toxicant.specific=="Pb", sample.type=="liver")%>%
-  group_by (species)%>%
-  summarise(count=n())%>%
-  arrange(count)
-
-```
