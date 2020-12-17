@@ -1,6 +1,5 @@
 ---
 title: "Raptor Toxicant Preliminary Analysis"
-author: "Pat Dumandan"
 date: "12/10/2020"
 output: html_document
 ---
@@ -8,10 +7,10 @@ output: html_document
 require(dplyr)
 require(rstan)
 require(rstanarm)
-require(metafor)
-require(metaviz)
+#require(metafor)
+#require(metaviz)
 
-options(mc.cores = parallel::detectCores())
+#options(mc.cores = parallel::detectCores())
 
 tox=read.csv("prax_sheet2.csv")
 ```
@@ -30,47 +29,164 @@ unique(tox_conc$toxicant.group)
 
 ### Analysis  
 
-### Part 1: Overall Toxicant Exposure  
-**Proportion exposed to toxicants** 
+#### Part 1: Toxicant Exposure  
+**Proportion exposed to major toxicants** 
 *assess how the proportion of exposed individuals varies across species, different toxicant types, sample type*  
 Steps:  
-* calculate proportion of individuals per species exposed to different toxicants
-* build beta regression model with intercepts allowed to vary per study, fixed effects of species, toxicant type,sample type, and geographical region (maybe traits too?) 
+* calculate proportion of individuals per species exposed to different toxicants  
+* visualization: no.of species studied/exposed per toxicant type  
+* determine most common sample type  
+* build beta-binomialmodel per toxicant type with intercepts allowed to vary per study,country and species, fixed effects for what (maybe traits too?) 
 
 ```{r, message=FALSE, echo=FALSE, warning=FALSE}
+tox_prop0=tox%>%
+rename(proportion=OR.if.given..proportion.exposed, species=Species..English.name.)%>%
+  filter(!is.na(proportion))
+
+#length(unique(tox_prop0$ID)) #7 studies
+
+#studies that have proportions, but not # of exposed
 tox_prop1=tox%>%
 rename(proportion=OR.if.given..proportion.exposed, species=Species..English.name.)%>%
   filter(!is.na(proportion))%>%
   mutate(exposed=(proportion*sample.size))
 
+#studies that have sample size and # of exposed but not proportions
 tox_prop2=tox%>%
 rename(species=Species..English.name., exposed=no..exposed)%>%
   filter(!is.na(sample.size), !is.na(exposed))%>%
   mutate(proportion=exposed/sample.size)
-
-
-tox_prop3=rbind(tox_prop1, tox_prop2)
-
-length(unique(tox_prop$ID)) #16 studies that reported sample size and exposure
-
-
-
-met=c("heavy metals", "metal")
-metal_n=tox_conc%>%
-  filter(toxicant.group %in% met)%>%
-  group_by (toxicant.specific, sample.type)%>%
-  summarise(count=n())%>%
-  arrange(count)
-Pb_n=tox_conc%>%
-  filter(toxicant.specific=="Pb", sample.type=="liver")%>%
-  group_by (species)%>%
-  summarise(count=n())%>%
-  arrange(count)
-
 ```
-#### Part 2: Toxicant-specific  
-*assess how toxicant concentrations vary per country, species, feeding trait, etc.*  
 
+```{r, message=FALSE, echo=FALSE, warning=FALSE}
+#identify most common sample type per toxicant group
+tox_sam=tox%>%
+rename(proportion=OR.if.given..proportion.exposed, species=Species..English.name.)%>%
+  filter(!is.na(proportion))%>%
+  group_by(sample.type, toxicant.group)%>%
+  summarise(count=n())%>%
+  arrange(count)
+#liver is commonest for ARs
+
+tox_liver=tox%>%
+rename(proportion=OR.if.given..proportion.exposed, species=Species..English.name.)%>%
+  filter(!is.na(proportion), toxicant.group=="anticoagulant rodenticides")
+```
+
+
+**Beta regression model**
+```{r, message=FALSE, warning=FALSE}
+dat_list=list(
+  N=length(tox_liver$ID),
+  y=tox_liver$no..exposed,
+  n=tox_liver$sample.size,
+  country=as.integer(tox_liver$country),
+  species=as.integer(tox_liver$species),
+  study=as.integer(tox_liver$ID),
+  Nsp=length(unique(tox_liver$species)),
+  Nst=length(unique(tox_liver$ID)),
+  Nct=length(unique(tox_liver$country)))
+
+#random intercept only
+#must add other fixed effects, but what?
+#must add generated quantities block
+#account for year?
+
+AR_mod=stan(model_code="
+
+data{
+  int<lower=0> N; // no.of obs
+  int <lower=0> y[N];       // exposed
+  int <lower=0>  n[N];       // sample size 
+ // real <lower=0, upper=1> proportion[N]; //proportion exposed
+  int country [N];// country
+  int species[N]; //ID of each species
+  int study [N]; //ID of study
+  int Nsp; //no.of species
+  int Nst; //no.of studies
+  int Nct; //no.of country
+}
+
+parameters {
+  real alpha;// global intercept
+  real<lower=0> sigma_sp[Nsp];//errors for random effects
+  real<lower=0> sigma_st[Nst];//errors for random effects
+  real<lower=0> sigma_ct[Nct];//errors for random effects
+  real <lower=0> phi;
+  real <lower=0> sp_non;//non-centered error term for species
+  real <lower=0> st_non;//non-centered error term for study
+  real <lower=0> ct_non;//non-centered error term for country
+  real <lower=0, upper=1> pred_exp[N] ;//exposure per observation
+}
+
+transformed parameters{
+  vector <lower=0, upper=1> [N] prop_mu; //mean estimated exposure 
+  vector <lower=0> [N] A;
+  vector <lower=0> [N] B;
+  vector [Nsp] alpha_sp; //random intercept per species
+  vector [Nst] alpha_st;// random intercept per study
+  vector [Nct] alpha_ct;// random intercept per family
+  //vector [Nfam] mass_fam; //random slope per family for mass effect
+  //vector [Nfam] diet_fam;//random slope per family for diet effect
+  //vector [Nfam] for_fam;//random slope per family for foraging effect
+  
+  for (j in 1:Nsp) {
+  
+  alpha_sp[j]= sp_non*sigma_sp[j];
+  }
+   for (k in 1:Nst) {
+  
+  alpha_st[k]= st_non*sigma_st[k];
+   }
+ 
+   for (m in 1:Nct) {
+  
+ alpha_ct[m]= ct_non*sigma_ct[m];
+ 
+  }
+  
+  //model:
+  
+  for (i in 1:N){
+  
+  prop_mu[i]= inv_logit(alpha+alpha_sp[Nsp]+alpha_st[Nst]+alpha_ct[Nct]);
+  }
+  
+  A = prop_mu * phi;
+  B = (1 - prop_mu)* phi;
+  
+  }
+
+ model {
+  //priors
+
+  sp_non~ normal(0,1);
+  st_non~ normal(0,1);
+  ct_non~ normal(0,1);
+  sigma_sp~ normal(0,1);
+  sigma_st~ normal(0,1);
+  sigma_ct~ normal(0,1);
+  
+  phi ~normal(0,1);// maybe set priors?
+  
+  //model likelihood:
+  
+  pred_exp ~ beta(A, B); // predicted exposure/proportion, beta dist.
+  y~binomial(n, pred_exp); //no.of exposed drawn from binomial dist; based on sample size and reported survival estimate
+ 
+  }
+",data=dat_list, chains=4, iter=300)
+
+summary(AR_mod, pars=c("alpha_sp")) #baseline exposure of each species to AR
+#BARN OWL=0.62, COMMON BUZZARD=0.61, EURASIAN EAGLE OWL=0.63, LITTLE OWL=0.67, LONG-EARED OWL=0.60, COMMON SCOPS OWL=0.60, TAWNY OWL=0.49
+```
+*Q for Vince: what should our predictors be? what are we interested in?*
+
+#### Part 2: Toxicant-specific  
+
+*assess how toxicant concentrations vary per country, species, feeding trait, etc.*    
+
+*Note: this part of the analysis I am not confident with because I've never done it, maye just descriptive stats for the concentration? (maybe someone more adept about toxicants can work on this?)*
 Steps:  
   * identify the most common/ most studied specific toxicant per main toxicant group (also identify what sample type collected)   
   * standardize values across all studies
@@ -78,8 +194,10 @@ Steps:
   * create mixed-effects model with intercept allowed to vary per study and species  
   * other descriptive stats (most studied species, country per toxicant type, etc.)
 
-#### Example: Heavy Metals (concentration)
-*assess how the amount of toxicant (concnetration) varies across species, country, and maybe other species traits?*
+**Example: Heavy Metals (concentration)**  
+
+*assess how the amount of toxicant (concnetration) varies across species, country( and maybe other species traits?)*  
+*figure out how to use the metafor package*
 ```{r, message=FALSE, echo=FALSE, warning=FALSE}
 met=c("heavy metals", "metal")
 metal_n=tox_conc%>%
@@ -93,9 +211,9 @@ Pb_n=tox_conc%>%
   summarise(count=n())%>%
   arrange(count)
 ```
-**Pb (Lead) in liver is most well-studied, most well-studied species is Common Buzzard (n=4)**   
+*Pb (Lead) in liver is most well-studied, most well-studied species is Common Buzzard (n=4)*  
 
-```{r}
+```{r, message=FALSE, echo=FALSE, warning=FALSE}
 #standardize values of Pb in liver
 #  1 ug/g = 1 mg/kg; 1 ppm = 1 mg/kg 
 estim_mean=c("arithmetic mean", "not specified", "n=1")
@@ -115,8 +233,9 @@ Pb_conc_all=tox_conc%>%
 ```
 *Q for Vince: 1) what's a good resource for the correction factors per sample type (Pb/AR/OC in liver, blood,etc)? 2) is it a correct assumption that species in the wild would have lower concnetrations of toxicant and can be our baseline for subject type(set as 0)?*
 
-```{r}
+**Gamma model**
+```{r, message=FALSE, echo=FALSE, warning=FALSE}
 #Gamma distribution 
-Pb_eff=stan_glmer(concentration~country+subject.type+(1|species)+(1|ID), data=Pb_conc_liver, family=Gamma(link = "inverse"), chains=2, iter=300)
+Pb_eff=stan_glmer(concentration~country+subject.type+(1|species)+(1|ID), data=Pb_conc_liver, family=Gamma(link = "log"), chains=2, iter=300)
 ```
 *Q for Vince: 1) should we have latitude as an explanatory variable instead of country?, 2) should we set the priors for this? (i.e. Monclus et al. 2020 paper), 3) are we still interested in knowing the effect of mass and other traits (like feeding trait) on the concentration levels? (if yes, might need help collating data for that (already have the EltonTraits database but just need help adding it on the database)*
