@@ -1,7 +1,9 @@
 ---
 title: "Raptor Toxicant Preliminary Analysis"
 date: "12/10/2020"
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
 ---
 ```{r setup, include=FALSE, message=FALSE, echo=FALSE, warning=FALSE}
 require(dplyr)
@@ -237,5 +239,6 @@ Pb_conc_all=tox_conc%>%
 ```{r, message=FALSE, echo=FALSE, warning=FALSE}
 #Gamma distribution 
 Pb_eff=stan_glmer(concentration~country+subject.type+(1|species)+(1|ID), data=Pb_conc_liver, family=Gamma(link = "log"), chains=2, iter=300)
+summary(Pb_eff)
 ```
 *Q for Vince: 1) should we have latitude as an explanatory variable instead of country?, 2) should we set the priors for this? (i.e. Monclus et al. 2020 paper), 3) are we still interested in knowing the effect of mass and other traits (like feeding trait) on the concentration levels? (if yes, might need help collating data for that (already have the EltonTraits database but just need help adding it on the database)*
