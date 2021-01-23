@@ -1,11 +1,21 @@
 #Preliminary Analysis
+require(dplyr)
+require(rstan)
+require(rstanarm)
+
+options(mc.cores = parallel::detectCores())
 
 tox=read.csv("prax_sheet.csv")
 str(tox)
-require(dplyr)
-tox$reference=tox$Reference..don.t.copy.
-tox$proportion=tox$OR.if.given..proportion.exposed
-tox$concentration=tox$concentration..ND.for.non.detects.
+
+tox_conc=tox%>%
+rename(proportion=OR.if.given..proportion.exposed,concentration=concentration..ND.for.non.detects. )%>%
+filter(!is.na(concentration))%>%
+arrange(ID)
+
+unique(tox_conc$toxicant.group)
+
+#what are PFAs, Os, unknowns?
 
 
 #toxicant-specific analysis
@@ -30,6 +40,16 @@ length(unique(met_tox$toxicant.specific)) #35 specific types of heavy metals
 mercury_conc=tox%>%
   filter(toxicant.specific=="Hg", !is.na(concentration))
 length(unique(mercury$Reference..don.t.copy.)) #3 studies
+str(mercury_conc)
+
 #all seem to be in same unit of measure
 
 # Step 3: create mixed effects model for each top specific toxicant of each main tox group
+#see concentration stan code script
+dat_list=list(N=length(mercury_conc$concentration), concentration=as.numeric(mercury_conc$concentration), 
+              species=as.integer(mercury_conc$Species..scientific.name.), 
+              study=as.integer(mercury_conc$reference),
+              country=as.integer(mercury_conc$country),
+              Nsp=length(unique(mercury_conc$Species..scientific.name.)),
+              Nst=length(unique(mercury_conc$reference)),
+              Ncoun=length(unique(mercury_conc$country)))
