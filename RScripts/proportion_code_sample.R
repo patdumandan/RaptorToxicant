@@ -47,7 +47,7 @@ transformed parameters{
   vector <lower=0> [N] B;
   vector [Nsp] alpha_sp; //random intercept per species
   vector [Nst] alpha_st;// random intercept per study
-  vector [Nct] alpha_ct;// random intercept per family
+  vector [Nct] alpha_ct;// random intercept per country
   //vector [Nfam] mass_fam; //random slope per family for mass effect
   //vector [Nfam] diet_fam;//random slope per family for diet effect
   //vector [Nfam] for_fam;//random slope per family for foraging effect
@@ -72,6 +72,10 @@ transformed parameters{
   for (i in 1:N){
   
   prop_mu[i]= inv_logit(alpha+alpha_sp[Nsp]+alpha_st[Nst]+alpha_ct[Nct]);
+  
+  //alternate:
+   prop_mu[i]= inv_logit(alpha+alpha_sp[Nsp]+alpha_st[Nst]+mass[i]+diet[i]+latitude[i]);
+  
   }
   
   A = prop_mu * phi;
