@@ -1,23 +1,41 @@
-library("readxl")
+#data clean up for proportion data as of May 2021####
+#missing: Todd, Vince, Ariana, Pat
+#reformat orig reference sheet to teams database to add data in there?
+
+#Notes####
+#1. for now, I only have records of 112 studies
+#2. the inconsistencies in data entry is making it a pain to clean the data
+#ex. use of na in the proportions instead of NA. and adding ND. just leave it blank
+#ex. adding asterisks next to values converts the entire column to a factor so that's problematic
+#but these are fixed, just a general rule
+
+library(readxl)
+library(ggplot2)
+library(dplyr)
+library(stringr)
+
 #Read in separate xls sheets####
-Christine=read_excel("Ref_2021.xlsx", sheet="Christine")
+Christine=read_excel("main_27May21.xlsx", sheet="Christine")
+
+Georgia=read_excel("main_27May21.xlsx", sheet="Georgia")
+
+James=read_excel("main_27May21.xlsx", sheet="James")
+
+Sharon=read_excel("main_27May21.xlsx", sheet="Sharon")
+
+Tara=read_excel("main_27May21.xlsx", sheet="Tara")
+
+Tricia=read_excel("main_27May21.xlsx", sheet="Tricia")
+
+#convert xlsx files to csv so we can manipulate using dplyr####
 write.csv(Christine, "christine.csv")
-
-Georgia=read_excel("Ref_2021.xlsx", sheet="Georgia")
 write.csv(Georgia, "georgia.csv")
-
-James=read_excel("Ref_2021.xlsx", sheet="James")
-write.csv(Christine, "james.csv")
-
-Sharon=read_excel("Ref_2021.xlsx", sheet="Sharon")
-write.csv(Sharon, "sharon.csv")
-
-Tara=read_excel("Ref_2021.xlsx", sheet="Tara")
+write.csv(James, "james.csv")
 write.csv(Tara, "tara.csv")
-
-Tricia=read_excel("Ref_2021.xlsx", sheet="Tricia")
+write.csv(Sharon, "sharon.csv")
 write.csv(Tricia, "tricia.csv")
 
+#read in the files####
 christine=read.csv("christine.csv")
 georgia=read.csv("georgia.csv")
 tara=read.csv("tara.csv")
@@ -25,85 +43,82 @@ james=read.csv("james.csv")
 sharon=read.csv("sharon.csv")
 tricia=read.csv("tricia.csv")
 
-#missing: Todd, Vince, Ariana, Pat
-#reformat orig reference sheet to teams database to add data in there?
 
 #make sure that the sheets have the same column names####
 
 christine=christine%>%
   filter(!is.na(ID))%>%
-  select(ID, Title, study.period,  country, Species..English.name., subject.type,toxicant.specific,toxicant.group,sample.type,
-         sample.size, no..exposed, OR.if.given..proportion.exposed, Age.Class, Sex)
+  select(-X, -Reference..don.t.copy.,-Notes)%>%
+  rename(sci_name= Species..scientific.name., common_name=Species..English.name.,proportion=OR.if.given..proportion.exposed)
 
 georgia=georgia%>%
   filter(!is.na(ID))%>%
-  select(ID, Title, study.period,  country, Species..English.name., subject.type,toxicant.specific,toxicant.group,sample.type,
-         sample.size, no..exposed, OR.if.given..proportion.exposed, Age.Class, Sex)
+  select(-X, -Notes)%>%
+  rename(sci_name= Species..scientific.name., common_name=Species..English.name.,proportion=OR.if.given..proportion.exposed)
 
 james=james%>%
   filter(!is.na(ID))%>%
-  select(ID, Title, study.period,  country, Species..English.name., subject.type,toxicant.specific,toxicant.group,sample.type,
-         sample.size, no..exposed, OR.if.given..proportion.exposed, Age.Class, Sex)
+  select(-X, -Notes)%>%
+  rename(sci_name= Species..scientific.name., common_name=Species..English.name.,proportion=OR.if.given..proportion.exposed)
 
 tara=tara%>%
   filter(!is.na(ID))%>%
-  select(ID, Title, study.period,  country, Species..English.name., subject.type,toxicant.specific,toxicant.group,sample.type,
-         sample.size, no..exposed, OR.if.given..proportion.exposed, Age.Class, Sex)
+  select(-X,-DELETE__FOR.REFERENCE.ONLY__AUTHOR.LIST_ , -Notes)%>%
+  rename(sci_name= Species..scientific.name., common_name=Species..English.name.,proportion=OR.if.given..proportion.exposed)
 
 sharon=sharon%>%
   filter(!is.na(ID))%>%
-  select(ID, Title, study.period,  country, Species..English.name., subject.type,toxicant.specific,toxicant.group,sample.type,
-         sample.size, no..exposed, OR.if.given..proportion.exposed, Age.Class, Sex)
+  select(-X, -Notes, -...29,-...30)%>%
+  rename(sci_name= Species..scientific.name., common_name=Species..English.name.,proportion=OR.if.given..proportion.exposed)
 
 tricia=tricia%>%
   filter(!is.na(ID))%>%
-  select(ID, Title, study.period,  country, Species..English.name., subject.type,toxicant.specific,toxicant.group,sample.type,
-         sample.size, no..exposed, OR.if.given..proportion.exposed, Age.Class, Sex)
+  select(-X, -Notes)%>%
+  rename(sci_name= Species..scientific.name., common_name=Species..English.name.,proportion=OR.if.given..proportion.exposed)
 
 #create full dataset####
-
 full_dat=rbind(christine,georgia,james,sharon,tara,tricia)%>%
-        arrange(ID)%>%
-  filter(!is.na(no..exposed) | !is.na(OR.if.given..proportion.exposed))
-
-write.csv(full_dat, "full_data.csv")
-
-full_dat=read.csv("full_data.csv")
+        arrange(ID)%>%rename(exposed=no..exposed)%>%
+        filter(!(sample.size %in%c("1 homogenate (see notes)")),
+               !(exposed %in% c("na", "ND")))%>%
+        mutate(sample.size=as.numeric(sample.size), exposed=as.integer(exposed),
+         proportion=stringr::str_replace(full_dat$proportion, '\\*', '')) %>%
+        filter(!(proportion %in%c(">0.5")))
 
 #create subset of data to calculate proportion for those with no.exposed and sample size####
 full_dat_1=full_dat%>%
-  filter(!is.na(no..exposed))%>%
-  mutate(proportion=no..exposed/sample.size)
+  mutate(proportion=as.numeric(proportion))%>%
+  mutate(proportion=exposed/sample.size)
 
 #create subset of data with proportions only
-full_dat_2=full_dat%>%
-  filter(!is.na(OR.if.given..proportion.exposed))%>%
-  mutate(proportion=OR.if.given..proportion.exposed, no..exposed=proportion*sample.size)
+full_dat_2=full_dat_1%>%
+  filter(!is.na(proportion))%>%
+  mutate(exposed=proportion*sample.size)
 
-#create full dataset
+#create full dataset for proportion analyses only####
 full_dat_3=rbind(full_dat_1,full_dat_2)%>%
-  mutate(exposed=no..exposed)%>%
-  select(ID, Title, study.period, country, Species..English.name., subject.type,
-         toxicant.specific, toxicant.group, sample.type,sample.size,exposed,proportion,
-         Age.Class,Sex)
-write.csv(full_dat_3, "clean_prop_data.csv")
+  select(ID, Title, study.period,country, common_name,sci_name,subject.type,
+         toxicant.specific, toxicant.group,
+         sample.type, sample.size, exposed, proportion, Age.Class)
+#read in trait dataset####
+trait_dat=read.csv("raptor_traits.csv")
 
-prop_data=read.csv("clean_prop_data.csv")
+full_dat_traits=left_join(full_dat_3, trait_dat, by=c("sci_name", "common_name"))%>%
+  select(ID, Title, study.period,country, common_name,sci_name,subject.type, Age.Class,
+         toxicant.specific, toxicant.group,
+         sample.type, sample.size, exposed, proportion, BodyMass.Value, Diet.Inv, Diet.Scav)
 
 #data exploration
+prop_data=full_dat_traits%>%filter(!is.na(proportion))
 
 tox_sam=prop_data%>%
-  group_by(sample.type, toxicant.group)%>%
+  group_by(ID,sample.type, toxicant.group)%>%
   summarise(count=n())%>%
   arrange(count)
-#blood plasma commonest for OCs
-#eggs for FRs
-#liver for PCBs and ARs
-#tail feathers for heavy metals
 
 prop_data=prop_data%>%
   mutate(toxicant.group=recode(toxicant.group, "pesticides"="organochlorine insecticides"))%>%
-  filter(!(toxicant.group=="unknown"))%>%
+  filter(!(toxicant.group %in%c("unknown", "0")), !is.na(toxicant.group))%>%
   mutate(Age=recode(Age.Class,"adult"="2", "Adult"="2", "SY"="2", "ASY"="2", "HY"="1", "egg(s)"="1", 
                     "juvenile"="1", "unknown"="2", "unknown/mixed"="2"))
 
@@ -117,4 +132,3 @@ graph <- ggplot(prop_data, aes(x = toxicant.group, y = proportion)) +
     panel.grid.minor = element_blank()
   )
 graph
-=
