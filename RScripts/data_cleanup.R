@@ -108,12 +108,13 @@ full_dat_2=full_dat_1%>%
 full_dat_3=rbind(full_dat_1,full_dat_2)%>%
   select(ID, Title, study.period,country, common_name,sci_name,subject.type,
          toxicant.specific, toxicant.group,
-         sample.type, sample.size, exposed, proportion, Age.Class)
+         sample.type, sample.size, exposed, proportion, Age.Class)%>%
+  mutate(re)
 #read in trait dataset####
 trait_dat=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/data/raptor_traits.csv")
 
-full_dat_traits=left_join(full_dat_3, trait_dat, by=c("sci_name", "common_name"))%>%
-  select(ID, Title, study.period,country, common_name,sci_name,subject.type, Age.Class,
+full_dat_traits=left_join(full_dat_3, trait_dat, by=c("common_name"))%>%
+  select(ID, Title, study.period,country, common_name,subject.type, Age.Class,
          toxicant.specific, toxicant.group,
          sample.type, sample.size, exposed, proportion, BodyMass.Value, Diet.Inv, Diet.Scav)
 
