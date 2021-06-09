@@ -1,0 +1,183 @@
+---
+title: "toxicants in raptor"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readxl)
+library(ggplot2)
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(rstan)
+
+options(mc.cores = parallel::detectCores())
+```  
+**Analysis for proportion exposed data** 
+
+*Modelling Approach*  
+
+* Here, we use a hierarchical beta-binomial (BB) model  to assess the relationship between exposure to different toxicants and body mass (*Note: we might be interested in adding other covariates*). We use a BB model in order for us to inform the parameter for probability (i.e., proportion exposed) and account for varying sample size for each species and thus, overdispersion. The model has the form:  
+
+$$ 
+ \begin{align*}
+ 
+ Y_{ij} \sim Binom \ (n_{ij}, \ p_{ij}) \qquad \text{(Eqn.1)} \\
+ p_i \sim Beta \ (\gamma_1, \gamma_2)\qquad \text{(Eqn.2)} \\
+\gamma_1 = \mu_1 * \phi ; \quad \gamma_2 = (1 - \mu_1) * \phi \qquad \text { (Eqn.3)} \\
+\mu_1 = logit^{-1} (\alpha_{ij} + \Sigma (\beta_i*X_i)) \qquad \text { (Eqn. 4)}
+
+\end{align*}
+$$  
+In Eqn. 1, we are saying that our response variable (i.e., # exposed) follows a binomial distribution with the parameters *n* (sample size) and *p* (probability of exposure). The posterior of *p* is described by a beta distribution with shape hyperparameters, \(\gamma_1\) and \(\gamma_2\) (Eqn. 2). We reparameterize these hyperparameters to make it easier for us to see how our model is taking into account the variance in sample sizes by rewriting it in terms of a mean \(\mu\) and overdispersion/variance, \(\phi\) parameters (Eqn. 3). Then, we define the mean probability of exposure as the sum of the effects of linear terms and intercept that is allowed to vary per species, country, etc. (*still have to discuss how we want to approach this, but for now I'm thinking mass*).  
+
+*Results*  
+```{r include=F, echo=F}
+prop_data=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/data/proportion_data.csv")
+prop_data=prop_data%>%drop_na()
+prop_data$spcode=as.integer(prop_data$sci_name)
+prop_data$stcode=as.integer(prop_data$Title)
+prop_data$ctcode=as.integer(prop_data$country)
+```  
+1. Visualizing the data   
+```{r echo=F, fig.cap= "P(exposure) of raptors to different toxicants" }
+ggplot(prop_data, aes(x = toxicant.group, y = proportion)) +
+  geom_boxplot() +
+  geom_jitter(size = 1, alpha = 0.5, width = 0.25, colour = 'black') +
+  theme_classic() + 
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+
+```  
+
+```{r echo=F, fig.cap= "Relationship between P(exposure to toxicants) and body mass"}
+ggplot(prop_data, aes(x = BodyMass.Value, y = proportion)) +
+  geom_point() +facet_wrap(~toxicant.group)+
+  geom_jitter(size = 1, alpha = 0.5, width = 0.25, colour = 'black') +
+  theme_classic() + stat_smooth(method='lm')+
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+```  
+
+2. BB model for all toxicants (no pooling for this) but intercept allowed to vary per species, country and study
+
+```{r message=F, warning=F} 
+dat_list=list( N=length(prop_data$Title),
+               y=prop_data$exposed,    
+               n=prop_data$sample.size,     
+               mass=prop_data$BodyMass.Value,
+               species=prop_data$spcode,
+               country=prop_data$ctcode,
+               study=prop_data$stcode,
+               Nsp=length(unique(prop_data$spcode)),
+               Nst=length(unique(prop_data$stcode)),
+               Nct=length(unique(prop_data$ctcode)))
+
+prop_mod=stan(model_code="
+
+data{
+  int<lower=0> N; // no.of obs
+  int <lower=0> y[N];       // exposed
+  int <lower=0>  n[N];       // sample size 
+  // real <lower=0, upper=1> proportion[N]; //proportion exposed
+  int country [N];// country
+  int species[N]; //ID of each species
+  int study [N]; //ID of study
+  int Nsp; //no.of species
+  int Nst; //no.of studies
+  int Nct; //no.of country
+  vector [N] mass;
+}
+
+parameters {
+  real alpha;// global intercept
+  real mass_eff; // slope for mass
+  real<lower=0> sigma_sp[Nsp];//errors for random effects
+  real<lower=0> sigma_st[Nst];//errors for random effects
+  real<lower=0> sigma_ct[Nct];//errors for random effects
+  real <lower=0> phi;
+  real <lower=0> sp_non;//non-centered error term for species
+  real <lower=0> st_non;//non-centered error term for study
+  real <lower=0> ct_non;//non-centered error term for country
+  real <lower=0, upper=1> pred_exp[N] ;//exposure per observation
+}
+
+transformed parameters{
+  vector <lower=0, upper=1> [N] prop_mu; //mean estimated exposure 
+  vector <lower=0> [N] A;
+  vector <lower=0> [N] B;
+  vector [Nsp] alpha_sp; //random intercept per species
+  vector [Nst] alpha_st;// random intercept per study
+  vector [Nct] alpha_ct;// random intercept per country
+ 
+ //NCP of random terms:
+  for (j in 1:Nsp) {
+    
+    alpha_sp[j]= sp_non*sigma_sp[j];
+  }
+  for (k in 1:Nst) {
+    
+    alpha_st[k]= st_non*sigma_st[k];
+  }
+  
+  for (m in 1:Nct) {
+    
+    alpha_ct[m]= ct_non*sigma_ct[m];
+    
+  }
+  
+  //model:
+    
+    for (i in 1:N){
+      
+      prop_mu[i]= inv_logit(alpha+alpha_sp[Nsp]+alpha_st[Nst]+alpha_ct[Nct]+ mass_eff*mass[i]);
+    }
+  
+  //reparameterize shape hyperparameters:
+  A = prop_mu * phi;
+  B = (1 - prop_mu)* phi;
+  
+}
+
+model {
+  //priors
+  alpha~normal(0,1);
+  mass_eff~normal(0,1);
+  sp_non~ normal(0,1);
+  st_non~ normal(0,1);
+  ct_non~ normal(0,1);
+  sigma_sp~ normal(0,1);
+  sigma_st~ normal(0,1);
+  sigma_ct~ normal(0,1);
+  
+  phi ~normal(0,1);// maybe set priors?
+    
+    //model likelihood:
+    
+    pred_exp ~ beta(A, B); // predicted exposure/proportion, beta dist.
+  y~binomial(n, pred_exp); //no.of exposed drawn from binomial dist; based on sample size and reported survival estimate
+  
+}
+",data=dat_list, chains=4, iter=300)
+```  
+
+
+```{r echo=F}
+print(prop_mod, pars=c("alpha", "alpha_sp", "mass_eff"))
+post=extract(prop_mod)$pred_exp
+matplot(prop_data$BodyMass.Value,t(post), type="l",col="grey", xlab="body mass (g)", ylab="P(exposure")
+points(prop_data$proportion~prop_data$BodyMass.Value, col="black", pch=19)
+```  
+
+**Notes**  
+* was this what you had in mind for approaching the proportion data?  how should we go about the concentration data?  
+* still have to do more tweaking for this model because convergence is terrible. do we want inform some of the parameters? how? which ones?  
+* what other covariates do we want to add? how do we want to add the year effect?  
+* should we build a separate model for each major toxicant group?  
