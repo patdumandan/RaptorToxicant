@@ -108,8 +108,7 @@ full_dat_2=full_dat_1%>%
 full_dat_3=rbind(full_dat_1,full_dat_2)%>%
   select(ID, Title, study.period,country, common_name,sci_name,subject.type,
          toxicant.specific, toxicant.group,
-         sample.type, sample.size, exposed, proportion, Age.Class)%>%
-  mutate(re)
+         sample.type, sample.size, exposed, proportion, Age.Class)
 #read in trait dataset####
 trait_dat=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/data/raptor_traits.csv")
 
@@ -153,6 +152,31 @@ graph
 
 #proportion~body mass
 graph <- ggplot(prop_data, aes(x = BodyMass.Value, y = proportion)) +
+  geom_point() +facet_wrap(~toxicant.group)+
+  geom_jitter(size = 1, alpha = 0.5, width = 0.25, colour = 'black') +
+  theme_classic() + stat_smooth(method='lm')+
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+graph
+
+#proportion~Diet.Scav
+
+graph <- ggplot(prop_data, aes(x = Diet.Scav, y = proportion)) +
+  geom_point() +facet_wrap(~toxicant.group)+
+  geom_jitter(size = 1, alpha = 0.5, width = 0.25, colour = 'black') +
+  theme_classic() + stat_smooth(method='lm')+
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+graph
+
+#proportion~Diet.Inv
+graph <- ggplot(prop_data, aes(x = Diet.Inv, y = proportion)) +
   geom_point() +facet_wrap(~toxicant.group)+
   geom_jitter(size = 1, alpha = 0.5, width = 0.25, colour = 'black') +
   theme_classic() + stat_smooth(method='lm')+
