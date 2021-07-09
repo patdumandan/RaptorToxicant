@@ -146,7 +146,7 @@ prop_data=prop_data%>%
   mutate(Age=recode(Age.Class,"adult"="2", "Adult"="2", "SY"="2", "ASY"="2", "HY"="1", "egg(s)"="1", 
                     "juvenile"="1", "unknown"="2", "unknown/mixed"="2"))
 
-#write.csv(prop_data, "proportion_data.csv")
+write.csv(prop_data, "proportion_data.csv")
 
 #data visualization for proportion####
 
