@@ -1,16 +1,23 @@
 #model for AR exposure
 #intercept allowed to vary per species, per country, per study, per sample.type
+prop_data=prop_data%>%
+  mutate(sample.type=recode(sample.type, "egg(s)"="eggs", "feathers - body" ="body feathers" ,
+                            "abdominal fat"="adipose", "feathers - tail/retrices" ="tail feathers/tertials",
+                            "feathers - barbs only (primaries)" ="primaries", "feathers - rachis only (primaries)" ="primaries"))
 
-AR_dat=AR_dat%>%filter(toxicant.group=="anticoagulant rodenticides")
+AR_dat=prop_data%>%filter(toxicant.group=="anticoagulant rodenticides")
 AR_dat$spcode=as.integer(as.factor(AR_dat$common_name))
 AR_dat$stcode=as.integer(as.factor(AR_dat$Title))
 AR_dat$ctcode=as.integer(as.factor(AR_dat$country))
 AR_dat$samcode=as.integer(as.factor(AR_dat$sample.type))
+AR_dat$stdmass=(AR_dat$BodyMass.Value - mean(AR_dat$BodyMass.Value))/(2 *sd(AR_dat$BodyMass.Value))
+AR_dat$stdinvdiet=(AR_dat$Diet.Inv - mean(AR_dat$Diet.Inv))/(2 *sd(AR_dat$Diet.Inv))
+AR_dat$stdscavdiet=(AR_dat$Diet.Scav - mean(AR_dat$Diet.Scav))/(2 *sd(AR_dat$Diet.Scav))
 
 dat_list=list( N=length(AR_dat$Title),
                y=AR_dat$exposed,    
                n=AR_dat$sample.size,     
-               mass=AR_dat$BodyMass.Value,
+               mass=AR_dat$stdmass,
                sample=AR_dat$samcode,
                species=AR_dat$spcode,
                country=AR_dat$ctcode,
@@ -75,17 +82,17 @@ transformed parameters{
 
    for (k in 1:Nst) {
   
-  alpha_st[k]= st_non*sigma_st[k];
+  alpha_st[k]= sp_non*sigma_st[k];
    }
  
    for (m in 1:Nct) {
   
- alpha_ct[m]= ct_non*sigma_ct[m];
+ alpha_ct[m]= sp_non*sigma_ct[m];
    }
  
   for (z in 1:Nsam) {
   
- alpha_sam[z]= ct_non*sigma_sam[z];
+ alpha_sam[z]= sp_non*sigma_sam[z];
  }
   //model:
   
@@ -120,4 +127,4 @@ transformed parameters{
   y~binomial(n, pred_exp); //no.of exposed drawn from binomial dist; based on sample size and reported survival estimate
  
   }
-",data=dat_list, chains=4, iter=300, control=list(max_treedepth=12))
+",data=dat_list, chains=4, iter=3000)
