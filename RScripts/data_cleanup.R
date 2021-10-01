@@ -1,36 +1,24 @@
-#data clean up for proportion data as of May 2021####
-#missing: Todd, Vince, Ariana, Pat
-#reformat orig reference sheet to teams database to add data in there?
-
-#Notes####
-#1. for now, I only have records of 112 studies
-#2. the inconsistencies in data entry is making it a pain to clean the data
-#ex. use of na in the proportions instead of NA. and adding ND. just leave it blank
-#ex. adding asterisks next to values converts the entire column to a factor so that's problematic
-#but these are fixed, just a general comment
+#data clean up for toxicant exposure data as of June 2021####
 
 library(readxl)
 library(ggplot2)
 library(dplyr)
 library(stringr)
 library(tidyr)
-library(rstan)
-
-options(mc.cores = parallel::detectCores())
 
 #Read in separate xls sheets####
 #can skip this part and just load full dataset from GitHub repo
-Christine=read_excel("main_27May21.xlsx", sheet="Christine")
+Christine=read_excel("./data/FINAL_datsheet_25Jun21.xlsx", sheet="Christine")
 
-Georgia=read_excel("main_27May21.xlsx", sheet="Georgia")
+Georgia=read_excel("./data/FINAL_datsheet_25Jun21.xlsx", sheet="Georgia")
 
-James=read_excel("main_27May21.xlsx", sheet="James")
+James=read_excel("./data/FINAL_datsheet_25Jun21.xlsx", sheet="James")
 
-Sharon=read_excel("main_27May21.xlsx", sheet="Sharon")
+Sharon=read_excel("./data/FINAL_datsheet_25Jun21.xlsx", sheet="Sharon")
 
-Tara=read_excel("main_27May21.xlsx", sheet="Tara")
+Tara=read_excel("./data/FINAL_datsheet_25Jun21.xlsx", sheet="Tara")
 
-Tricia=read_excel("main_27May21.xlsx", sheet="Tricia")
+Tricia=read_excel("./data/FINAL_datsheet_25Jun21.xlsx", sheet="Tricia")
 
 #convert xlsx files to csv so we can manipulate using dplyr####
 write.csv(Christine, "christine.csv")
@@ -41,12 +29,12 @@ write.csv(Sharon, "sharon.csv")
 write.csv(Tricia, "tricia.csv")
 
 #read in the files####
-christine=read.csv("./data/christine.csv")
-georgia=read.csv("./data/georgia.csv")
-tara=read.csv("./data/tara.csv")
-james=read.csv("./data/james.csv")
-sharon=read.csv("./data/sharon.csv")
-tricia=read.csv("./data/tricia.csv")
+christine=read.csv("./data/christine.csv", stringsAsFactors = FALSE)
+georgia=read.csv("./data/georgia.csv", stringsAsFactors = FALSE)
+tara=read.csv("./data/tara.csv", stringsAsFactors = FALSE)
+james=read.csv("./data/james.csv", stringsAsFactors = FALSE)
+sharon=read.csv("./data/sharon.csv", stringsAsFactors = FALSE)
+tricia=read.csv("./data/tricia.csv", stringsAsFactors = FALSE)
 
 
 #make sure that the sheets have the same column names####
@@ -90,10 +78,11 @@ full_dat=rbind(christine,georgia,james,sharon,tara,tricia)%>%
          proportion=stringr::str_replace(proportion, '\\*', '')) %>%
         filter(!(proportion %in%c(">0.5")))
 
-write.csv(full_dat, "full_data.csv")
+write.csv(full_dat, "FINAL_full_data.csv")
 
 #FULL DATASET############
-full_dat=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/data/full_data.csv")
+full_dat=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/data/FINAL_full_data.csv", stringsAsFactors = FALSE)
+
 #create subset of data to calculate proportion for those with no.exposed and sample size####
 full_dat_1=full_dat%>%
   mutate(proportion=as.numeric(proportion))%>%
@@ -108,9 +97,11 @@ full_dat_2=full_dat_1%>%
 full_dat_3=rbind(full_dat_1,full_dat_2)%>%
   select(ID, Title, study.period,country, common_name,sci_name,subject.type,
          toxicant.specific, toxicant.group,
-         sample.type, sample.size, exposed, proportion, Age.Class)
+         sample.type, sample.size, exposed, proportion, Age.Class)%>%
+  mutate(common_name=str_to_title(common_name))
 #read in trait dataset####
-trait_dat=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/data/raptor_traits.csv")
+trait_dat=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/data/raptor_traits.csv")%>%
+  mutate(common_name=str_to_title(common_name))
 
 full_dat_traits=left_join(full_dat_3, trait_dat, by=c("common_name"))%>%
   select(ID, Title, study.period,country, common_name,subject.type, Age.Class,
