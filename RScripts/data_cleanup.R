@@ -106,9 +106,13 @@ full_dat=rbind(christine,georgia,james,sharon,tara,tricia)%>%
          !is.na(toxicant.group))%>%
        distinct_all()%>%
   arrange(ID)
+  
+full_dat=full_dat%>%separate(study.period, c("start", "end"),extra = "drop", fill = "right")
+full_dat=as.data.frame(full_dat)
 
-#write.csv(full_dat, "FINAL_full_data.csv")
+write.csv(full_dat, "FINAL_full_data.csv", row.names = F)
  
+
 #Note: ID starts at 89 because first 88 have been excluded during initial review
 
 #FULL DATASET############

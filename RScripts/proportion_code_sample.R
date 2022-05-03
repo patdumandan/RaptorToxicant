@@ -17,7 +17,13 @@
 #3. do we want to estimate the effect of diet on probability of exposure too?
 
 #read data####
-prop_data=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/data/proportion_data.csv")
+prop_data=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/data/proportion_data.csv", stringsAsFactors =FALSE)
+
+AR_dat=prop_data%>%filter(toxicant.group=="anticoagulant rodenticides")
+OC_dat=prop_data%>%filter(toxicant.group=="organochlorine insecticides")
+MET_dat=prop_data%>%filter(toxicant.group=="heavy metals")
+FR_dat=prop_data%>%filter(toxicant.group=="flame retardants")
+PCB_dat=prop_data%>%filter(toxicant.group=="PCBs")
 
 #sample: OC pesticides in liver
 
