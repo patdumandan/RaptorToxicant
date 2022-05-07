@@ -17,7 +17,12 @@
 #3. do we want to estimate the effect of diet on probability of exposure too?
 
 #read data####
-prop_data=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/data/proportion_data.csv", stringsAsFactors =FALSE)
+prop_data=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/proportion_data.csv")
+
+prop_data=prop_data%>%
+  mutate(species=as.integer(as.factor(common_name)), Country=as.integer(as.factor(country)),
+                 study=as.integer(as.factor(Title)),
+         as.integer(as.factor(toxicant.group)))
 
 AR_dat=prop_data%>%filter(toxicant.group=="anticoagulant rodenticides")
 OC_dat=prop_data%>%filter(toxicant.group=="organochlorine insecticides")
@@ -25,15 +30,17 @@ MET_dat=prop_data%>%filter(toxicant.group=="heavy metals")
 FR_dat=prop_data%>%filter(toxicant.group=="flame retardants")
 PCB_dat=prop_data%>%filter(toxicant.group=="PCBs")
 
+prop_data$mass= scale(prop_data$BodyMass.Value, center=T, scale=T)
+prop_data$inv= scale(prop_data$Diet.Inv, center=T, scale=T)
+prop_data$scav= scale(prop_data$Diet.Scav, center=T, scale=T)
+
+#34 studies if we only use proportions
 #sample: OC pesticides in liver
-
-OC_liver=prop_data%>%
-  filter(sample.type=="liver", toxicant.group=="organochlorine insecticides")%>%
-  mutate(species=as.integer(sci_name), Country=as.integer(country),
-         study=as.integer(Title))
-  mutate(spcode=recode(species, "47"="1", "57"="2", "31"="3", "70"="4", "42"="5", "45"="5"))%>%
-  mutate(spcode=as.integer(spcode))
-
+require(brms)
+m2=brm(exposed | trials(sample.size)~ mass+inv+scav+(1|species), data=prop_data, family=binomial, chains=3, iter=100)
+#largest rhat=1.13
+# need to increase max_treedepth > 10
+summary(m2)
 
 dat_list=list(
   N=length(OC_liver$ID),

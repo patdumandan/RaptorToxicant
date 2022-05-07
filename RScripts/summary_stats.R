@@ -1,5 +1,5 @@
 #geography####
-cntry=full_dat%>%
+cntry=full_data%>%
   select(ID, country)%>%
 group_by(country,ID)%>%
  summarise(std=n_distinct(ID, country))%>%
@@ -11,7 +11,7 @@ group_by(country,ID)%>%
 cntry%>%group_by(ID)%>%filter(n()>1)%>%arrange()
 
 #species###
-sp=full_dat%>%
+sp=full_data%>%
   group_by(common_name, ID)%>%
   summarise(std=n_distinct(common_name, ID))%>%
 
@@ -24,7 +24,7 @@ sp=full_dat%>%
 repsp=sp%>%group_by(ID)%>%filter(n()>1)%>%arrange(ID)
 
 #toxicant####
-tox=full_dat%>%
+tox=full_data%>%
   group_by(toxicant.group, ID)%>%
   summarise(std=n_distinct(toxicant.group, ID))%>%
   distinct(toxicant.group, ID)%>%
@@ -38,32 +38,48 @@ unique(toxsp$ID)
 
 #toxicant X raptor
 
-arsp=full_dat%>%filter(toxicant.group=="anticoagulant rodenticides")%>%
+arsp=full_data%>%filter(toxicant.group=="anticoagulant rodenticides")%>%
   distinct(ID, common_name)%>%
   group_by(common_name)%>%
   summarise(total=n())%>%
   arrange(total)
 
-frsp=full_dat%>%filter(toxicant.group=="flame retardants")%>%
+frsp=full_dataa%>%filter(toxicant.group=="flame retardants")%>%
   distinct(ID, common_name)%>%
   group_by(common_name)%>%
   summarise(total=n())%>%
   arrange(total)
 
-hmsp=full_dat%>%filter(toxicant.group=="heavy metals")%>%
+hmsp=full_data%>%filter(toxicant.group=="heavy metals")%>%
   distinct(ID, common_name)%>%
   group_by(common_name)%>%
   summarise(total=n())%>%
   arrange(total)
 
-pcbsp=full_dat%>%filter(toxicant.group=="PCBs")%>%
+pcbsp=full_data%>%filter(toxicant.group=="PCBs")%>%
   distinct(ID, common_name)%>%
   group_by(common_name)%>%
   summarise(total=n())%>%
   arrange(total)
 
-ocsp=full_dat%>%filter(toxicant.group=="organochlorine insecticides")%>%
+ocsp=full_data%>%filter(toxicant.group=="organochlorine insecticides")%>%
   distinct(ID, common_name)%>%
   group_by(common_name)%>%
   summarise(total=n())%>%
   arrange(total)
+
+#toxicant X sample
+
+tox_sam=full_data%>%
+  distinct(ID, common_name, sample.type, toxicant.group)%>%
+  group_by(sample.type, toxicant.group)%>%
+  mutate(count=n())%>%
+  arrange(count)
+
+#toxicant specific
+
+tox_spec=full_data%>%
+  distinct(toxicant.specific, toxicant.group)%>%
+  arrange(toxicant.group)
+
+write.csv(tox_spec, "toxspec.csv")

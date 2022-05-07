@@ -24,6 +24,13 @@ conc_dat=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/
 
 #sample model code for mercury concentration####
 #random intercept only, no other predictors
+dat_list=list(
+  N=length(conc_traits$ID),
+  mass=conc_traits$BodyMass.Value,
+  species=conc_traits$spcode,
+  Nsp=length(unique(conc_traits$spcode)),
+  concentration=conc_traits$concentration
+)
 
 hg_conc=stan(model_code="
   
@@ -33,11 +40,11 @@ hg_conc=stan(model_code="
   real concentration[N]; //
  // real <lower=0> mass[N];// ave.mass in kg
   int species[N]; //ID of each species
-  int study [N]; //ID of study
+ // int study [N]; //ID of study
   int Nsp; //no.of species
-  int Nst; //no.of studies
-  int country [N];  // ID of country
-  int Ncoun;
+ // int Nst; //no.of studies
+  //int country [N];  // ID of country
+  //int Ncoun;
                 }
                 
   parameters {
@@ -45,12 +52,12 @@ hg_conc=stan(model_code="
   real <lower=0> alpha;// global intercept
   real <lower=0> beta2; //slope region effect
   real<lower=0> sigma_sp;//errors for random effects
-  real<lower=0> sigma_st;//errors for random effects
-  real<lower=0> sigma_co;//errors for random effects
+  //real<lower=0> sigma_st;//errors for random effects
+  //real<lower=0> sigma_co;//errors for random effects
   real <lower=0> phi; // global variance term
   real <lower=0> sp_non;//non-centered error term for species
-  real <lower=0> st_non;//non-centered error term for study
-  real <lower=0> co_non;//non-centered error term for family
+  //real <lower=0> st_non;//non-centered error term for study
+  //real <lower=0> co_non;//non-centered error term for family
   
   
               }
@@ -59,26 +66,26 @@ hg_conc=stan(model_code="
   transformed parameters{
   vector <lower=0, upper=1> [N] conc_mu; //estimated survival 
   vector [Nsp] alpha_sp; //random intercept per species
-  vector [Nst] alpha_st; //random intercept per species
-  vector [Ncoun] alpha_coun; //random intercept per species
+  //vector [Nst] alpha_st; //random intercept per species
+  //vector [Ncoun] alpha_coun; //random intercept per species
   
   for (i in 1:N){
   
-  conc_mu[i]= alpha+alpha_sp[species[i]]+alpha_st[study[i]]+alpha_coun[country[i]];
+  conc_mu[i]= alpha+alpha_sp[Nsp[i]];
   }
   
    for(j in 1:Nsp){
-           alpha_sp[j]= sp_non*sigma_sp[j];
+           alpha_sp[j]= sp_non*sigma_sp;
   }
   
-  for (f in 1: Nst){
+ // for (f in 1: Nst){
   
-          alpha_st[f]= st_non*sigma_st[f];
-  }
+   //       alpha_st[f]= st_non*sigma_st[f];
+  //}
   
-  for (v in 1:Ncoun){
-        alpha_coun[v]=co_non*sigma_co[v];
-  }
+  //for (v in 1:Ncoun){
+    //    alpha_coun[v]=co_non*sigma_co[v];
+  //}
   
   }
   
@@ -88,27 +95,27 @@ hg_conc=stan(model_code="
   alpha~ normal (0,1);
   beta2~ normal (0,1);
   sigma_sp ~normal(0,1);
-  sigma_st~ normal(0,1);
-  sigma_co~ normal(0,1);
+  //sigma_st~ normal(0,1);
+  //sigma_co~ normal(0,1);
   
   phi~ normal(0,1);//global variance
   
   sp_non~ normal(0,1);
-  st_non~ normal(0,1);
-  co_non~ normal(0,1);
+  //st_non~ normal(0,1);
+  //co_non~ normal(0,1);
   
   concentration ~ normal (conc_mu, phi);
   }
   
-  generated quantities {
+ // generated quantities {
   
-  vector [N] log_lik;//for LOOIC: log-likelihood
-  reall <lower=0> y_mu_pred [N]; //predicted concentration
+  //vector [N] log_lik;//for LOOIC: log-likelihood
+  //real <lower=0> y_mu_pred [N]; //predicted concentration
   
-  for (n in 1:N){
-  log_lik[n] = normal_lpmf(concentration [n]| conc_mu[n], phi);
-  y_mu_pred= normal_rng (conc_mu[n], phi);
-  }
+  //for (n in 1:N){
+  //log_lik[n] = normal_lpmf(concentration [n]| conc_mu[n], phi);
+  //y_mu_pred= normal_rng (conc_mu[n], phi);
+  //}
   
   
-  }", data=dat_list, chains=2, iter=100)
+  ", data=dat_list, chains=2, iter=100)

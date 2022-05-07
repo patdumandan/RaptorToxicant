@@ -1,4 +1,8 @@
 #data clean up for toxicant exposure data as of June 2021####
+#Note: all steps from lines 4 to 122 are not needed if you just want to access the cleaned data
+#line 131 is what you need to run to get the cleaned full dataset used for the analyses
+#line 170 to get cleaned proportion data with traits
+#line 184 to get cleaned concentration data with traits
 
 library(readxl)
 library(ggplot2)
@@ -106,21 +110,37 @@ full_dat=rbind(christine,georgia,james,sharon,tara,tricia)%>%
          !is.na(toxicant.group))%>%
        distinct_all()%>%
   arrange(ID)
-  
+
 full_dat=full_dat%>%separate(study.period, c("start", "end"),extra = "drop", fill = "right")
 full_dat=as.data.frame(full_dat)
-
+#Note: Need to manually check the sci.and common names so they would match
 write.csv(full_dat, "FINAL_full_data.csv", row.names = F)
  
 
 #Note: ID starts at 89 because first 88 have been excluded during initial review
 
 #FULL DATASET############
-full_dat=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/data/FINAL_full_data.csv")
+full_dat=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/FINAL_full_data.csv")
 
-#create subset of data to calculate proportion for those with no.exposed and sample size####
+full_dat=full_dat%>%
+  mutate(concentration=as.numeric(concentration..ND.for.non.detects.),
+       spcode=as.integer(as.factor(common_name)),
+       ctcode=as.integer(as.factor(country)))%>%
+  select(-concentration..ND.for.non.detects.)
 
-full_dat_1=full_dat%>%
+write.csv(full_dat, "full_dataset.csv")
+
+full_data=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/full_dataset.csv")
+
+#TRAIT DATASET####
+trait_dat=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/data/raptor_traits.csv")
+
+
+#PROPORTION DATASET####
+
+#create subset of data to calculate proportion for those with no.exposed and sample size
+
+full_dat_1=full_data%>%
   mutate(proportion=as.numeric(proportion))%>%
   mutate(proportion=exposed/sample.size)
 
@@ -131,92 +151,33 @@ full_dat_2=full_dat_1%>%
 
 #create full dataset for proportion analyses only####
 full_dat_3=rbind(full_dat_1,full_dat_2)%>%
-  select(ID, Title, study.period,country, common_name,sci_name,subject.type,
+  select(ID, Title, country, common_name,sci_name,subject.type,
          toxicant.specific, toxicant.group,
-         sample.type, sample.size, exposed, proportion, Age.Class,concentration..ND.for.non.detects.,
-         unit.of.measure)%>%
-  mutate(common_name=str_to_title(common_name))
+         sample.type, sample.size, exposed, proportion, Age.Class,concentration,
+         unit.of.measure)
 
-#read in trait dataset####
-trait_dat=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/data/raptor_traits.csv")%>%
-  mutate(common_name=str_to_title(common_name))
-
-full_dat_traits=left_join(full_dat_3, trait_dat, by=c("common_name"))%>%
-  select(ID,Title, study.period,country, BLFamilyLatin, common_name,subject.type, Age.Class,
+full_dat_4=left_join(full_dat_3, trait_dat, by="common_name")%>%
+  select(ID,Title, country, BLFamilyLatin, common_name,subject.type, Age.Class,
          toxicant.specific, toxicant.group,
          sample.type, sample.size, exposed, proportion, BodyMass.Value, Diet.Inv, Diet.Scav,
-         concentration..ND.for.non.detects., unit.of.measure)
+         concentration, unit.of.measure)%>%
+  distinct()
 
-#data exploration####
-prop_data=full_dat_traits%>%filter(!is.na(proportion))
+prop_data=full_dat_4%>%filter(!is.na(proportion))
 
-tox_sam=prop_data%>%
-  group_by(ID,sample.type, toxicant.group)%>%
-  summarise(count=n())%>%
-  arrange(count)
+write.csv(prop_data, "full_proportion_dataset.csv")
 
-prop_data=prop_data%>%
-  mutate(toxicant.group=recode(toxicant.group, "pesticides"="organochlorine insecticides", "PCB"="PCBs"))%>%
-  filter(!(toxicant.group %in%c("unknown", "0")), !is.na(toxicant.group))%>%
-  mutate(Age=recode(Age.Class,"adult"="2", "Adult"="2", "SY"="2", "ASY"="2", "HY"="1", "egg(s)"="1", 
-                    "juvenile"="1", "unknown"="2", "unknown/mixed"="2"))
+prop_data=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/full_proportion_dataset.csv")
 
-#write.csv(prop_data, "proportion_data.csv")
+#CONCENTRATION DATASET####
 
-#data visualization for proportion####
+conc_traits=left_join(full_data, trait_dat, by=c("common_name"))%>%
+  select(ID,Title, country, BLFamilyLatin, common_name,subject.type, Age.Class,
+         toxicant.specific, toxicant.group,
+         sample.type, sample.size, exposed, BodyMass.Value, Diet.Inv, Diet.Scav,
+         concentration,concentration.level.estimate.type, Detection.limit..if.reported.,
+         unit.of.measure, sublethal.effects.assessed., sublethal.specific,sublethal.type)
 
-#proportion~tox.group
-graph <- ggplot(prop_data, aes(x = toxicant.group, y = proportion)) +
-  geom_boxplot() +
-  geom_jitter(size = 1, alpha = 0.5, width = 0.25, colour = 'black') +
-  theme_classic() + 
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    panel.grid.major = element_blank(),
-    panel.grid.minor = element_blank()
-  )
-graph
+write.csv(conc_traits, "full_concentration_dataset.csv")
 
-#proportion~body mass
-graph <- ggplot(prop_data, aes(x = BodyMass.Value, y = proportion)) +
-  geom_point() +facet_wrap(~toxicant.group)+
-  geom_jitter(size = 1, alpha = 0.5, width = 0.25, colour = 'black') +
-  theme_classic() + stat_smooth(method='lm')+
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    panel.grid.major = element_blank(),
-    panel.grid.minor = element_blank()
-  )
-graph
-
-#proportion~Diet.Scav
-
-graph <- ggplot(prop_data, aes(x = Diet.Scav, y = proportion)) +
-  geom_point() +facet_wrap(~toxicant.group)+
-  geom_jitter(size = 1, alpha = 0.5, width = 0.25, colour = 'black') +
-  theme_classic() + stat_smooth(method='lm')+
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    panel.grid.major = element_blank(),
-    panel.grid.minor = element_blank()
-  )
-graph
-
-#proportion~Diet.Inv
-graph <- ggplot(prop_data, aes(x = Diet.Inv, y = proportion)) +
-  geom_point() +facet_wrap(~toxicant.group)+
-  geom_jitter(size = 1, alpha = 0.5, width = 0.25, colour = 'black') +
-  theme_classic() + stat_smooth(method='lm')+
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    panel.grid.major = element_blank(),
-    panel.grid.minor = element_blank()
-  )
-graph
-
-#proportion~phylogeny
-
-graph <- ggplot(prop_data, aes(x = BLFamilyLatin, y = proportion)) +
-      geom_point() +facet_wrap(~toxicant.group)+
-     geom_jitter(size = 1, alpha = 0.5, width = 0.25, colour = 'black')
-graph
+conc_traits=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/full_concentration_dataset.csv")
