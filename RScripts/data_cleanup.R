@@ -1,8 +1,8 @@
 #data clean up for toxicant exposure data as of June 2021####
 #Note: all steps from lines 4 to 122 are not needed if you just want to access the cleaned data
-#line 131 is what you need to run to get the cleaned full dataset used for the analyses
-#line 170 to get cleaned proportion data with traits
-#line 184 to get cleaned concentration data with traits
+#line 131 is what you need to run to get the "clean" full dataset used for the analyses
+#line 170 to get "clean" proportion data with traits
+#line 184 to get "clean" concentration data with traits
 
 library(readxl)
 library(ggplot2)
@@ -113,6 +113,8 @@ full_dat=rbind(christine,georgia,james,sharon,tara,tricia)%>%
 
 full_dat=full_dat%>%separate(study.period, c("start", "end"),extra = "drop", fill = "right")
 full_dat=as.data.frame(full_dat)
+full_dat=right_join(ref_sheet, full_data, by="ID")%>%select(-X.x, -X.y, -Title.y)%>%
+  rename("Title"="Title.x")
 #Note: Need to manually check the sci.and common names so they would match
 write.csv(full_dat, "FINAL_full_data.csv", row.names = F)
  

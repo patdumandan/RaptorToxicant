@@ -1,11 +1,19 @@
 #geography####
-cntry=full_data%>%
-  select(ID, country)%>%
-group_by(country,ID)%>%
- summarise(std=n_distinct(ID, country))%>%
+cntry=full_dat%>%
+  select(ID, country, toxicant.group)%>%
+group_by(country,ID, toxicant.group)%>%
+ summarise(std=n_distinct(ID, country, toxicant.group))%>%
   distinct(country,ID)%>%
   mutate(stdy=n())%>%
   distinct(country, stdy)
+
+#country-toxicant
+cntry=full_data%>%
+  select(ID, country, Continent, toxicant.group)%>%
+  group_by(toxicant.group, Continent)%>%
+  summarise(Records=n_distinct(Continent, ID, toxicant.group))%>%
+  rename(Toxicant=toxicant.group, continent=Continent)%>%
+  arrange(Records)%>%na.omit()
 
 #to locate studies with multiple countries
 cntry%>%group_by(ID)%>%filter(n()>1)%>%arrange()
