@@ -1,8 +1,6 @@
 #data clean up for toxicant exposure data as of June 2021####
-#Note: all steps from lines 4 to 122 are not needed if you just want to access the cleaned data
-#line 131 is what you need to run to get the "clean" full dataset used for the analyses
-#line 170 to get "clean" proportion data with traits
-#line 184 to get "clean" concentration data with traits
+#Note: all steps from lines 5 to 142 are not needed if you just want to access the cleaned data
+#line 146 is what you need to run to get the "clean" full dataset used for the analyses
 
 library(readxl)
 library(ggplot2)
@@ -52,7 +50,7 @@ tricia=read.csv("./data/tricia.csv", stringsAsFactors = FALSE)
 #ref=read_excel("./data/FINAL_datsheet_25Jun21.xlsx", sheet="Reference Sheet")
 #ref=ref%>%rename(ID=ID...23, Title=`Article Title`)%>%select(ID,Title )
 #old_dat=read.csv("./data/old_dat.csv", stringsAsFactors = FALSE)
-ref_sheet=read.csv("./data/ref_sheet.csv", stringsAsFactors = FALSE)
+ref_sheet=read.csv("./data/ref_sheet.csv", stringsAsFactors = FALSE)%>%select(ID, Title)
 #orig_sheet=left_join(old_dat, ref_sheet, by="ID")%>%
 #  select(-X.x, -Reference, -Notes, -X.y, -publication.year)
 
@@ -113,16 +111,10 @@ full_dat=rbind(christine,georgia,james,sharon,tara,tricia)%>%
 
 full_dat=full_dat%>%separate(study.period, c("start", "end"),extra = "drop", fill = "right")
 full_dat=as.data.frame(full_dat)
-full_dat=right_join(ref_sheet, full_data, by="ID")%>%select(-X.x, -X.y, -Title.y)%>%
-  rename("Title"="Title.x")
-#Note: Need to manually check the sci.and common names so they would match
-write.csv(full_dat, "FINAL_full_data.csv", row.names = F)
- 
+full_dat=right_join(ref_sheet, full_dat, by="ID")%>%
+  mutate(common_name)%>%rename("Title"="Title.x")%>%
 
 #Note: ID starts at 89 because first 88 have been excluded during initial review
-
-#FULL DATASET############
-full_dat=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/FINAL_full_data.csv")
 
 full_dat=full_dat%>%
   mutate(concentration=as.numeric(concentration..ND.for.non.detects.),
@@ -130,56 +122,25 @@ full_dat=full_dat%>%
        ctcode=as.integer(as.factor(country)))%>%
   select(-concentration..ND.for.non.detects.)
 
-write.csv(full_dat, "full_dataset.csv")
+#add continent
+cnt=read.csv("D:/projects/in-progress/raptor-toxicant meta-analysis/RaptorToxicant/RaptorToxicant/country.csv")%>%
+  rename(country=Country)%>%select(-X)
 
-full_data=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/full_dataset.csv")
+full_data=left_join(full_dat, cnt, by="country")
+full_dat1=full_data%>%mutate(common_name=str_to_title(common_name),
+                             sci_name= replace(sci_name, sci_name=="Polyborus plancus", "Caracara plancus"),
+                             common_name=replace(common_name, common_name=="Southern Crested Caracara", "Southern Caracara"),
+                             common_name=replace(common_name, common_name=="Hen Harrier", "Northern Harrier"))
+full_dat1$sci_name[full_dat1$common_name=="Northern Harrier"]="Circus cyaneus"
 
 #TRAIT DATASET####
 trait_dat=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/data/raptor_traits.csv")
 
+#get only body mass values, and fix caracara name
+wgt_dat=trait_dat%>%mutate(common_name=str_to_title(common_name))%>%select(sci_name, BodyMass.Value, common_name)
 
-#PROPORTION DATASET####
+full_dat3=left_join(full_dat1, wgt_dat, by=c("sci_name", "common_name"))
 
-#create subset of data to calculate proportion for those with no.exposed and sample size
+#write.csv(full_dat3, "FINAL_full_dataset_mass.csv")
 
-full_dat_1=full_data%>%
-  mutate(proportion=as.numeric(proportion))%>%
-  mutate(proportion=exposed/sample.size)
-
-#create subset of data with proportions only
-full_dat_2=full_dat_1%>%
-  filter(!is.na(proportion))%>%
-  mutate(exposed=proportion*sample.size)
-
-#create full dataset for proportion analyses only####
-full_dat_3=rbind(full_dat_1,full_dat_2)%>%
-  select(ID, Title, country, common_name,sci_name,subject.type,
-         toxicant.specific, toxicant.group,
-         sample.type, sample.size, exposed, proportion, Age.Class,concentration,
-         unit.of.measure)
-
-full_dat_4=left_join(full_dat_3, trait_dat, by="common_name")%>%
-  select(ID,Title, country, BLFamilyLatin, common_name,subject.type, Age.Class,
-         toxicant.specific, toxicant.group,
-         sample.type, sample.size, exposed, proportion, BodyMass.Value, Diet.Inv, Diet.Scav,
-         concentration, unit.of.measure)%>%
-  distinct()
-
-prop_data=full_dat_4%>%filter(!is.na(proportion))
-
-write.csv(prop_data, "full_proportion_dataset.csv")
-
-prop_data=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/full_proportion_dataset.csv")
-
-#CONCENTRATION DATASET####
-
-conc_traits=left_join(full_data, trait_dat, by=c("common_name"))%>%
-  select(ID,Title, country, BLFamilyLatin, common_name,subject.type, Age.Class,
-         toxicant.specific, toxicant.group,
-         sample.type, sample.size, exposed, BodyMass.Value, Diet.Inv, Diet.Scav,
-         concentration,concentration.level.estimate.type, Detection.limit..if.reported.,
-         unit.of.measure, sublethal.effects.assessed., sublethal.specific,sublethal.type)
-
-write.csv(conc_traits, "full_concentration_dataset.csv")
-
-conc_traits=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/full_concentration_dataset.csv")
+full_dat_tox=read.csv('https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/data/FINAL_full_dataset_mass.csv')
