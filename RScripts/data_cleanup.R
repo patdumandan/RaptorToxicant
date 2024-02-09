@@ -140,7 +140,8 @@ trait_dat=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant
 wgt_dat=trait_dat%>%mutate(common_name=str_to_title(common_name))%>%select(sci_name, BodyMass.Value, common_name)
 
 full_dat3=left_join(full_dat1, wgt_dat, by=c("sci_name", "common_name"))
-
-#write.csv(full_dat3, "FINAL_full_dataset_mass.csv")
-
+#write.csv(full_dat3, "FINAL_full_dataset_mass.csv", row.names = FALSE)
 full_dat_tox=read.csv('https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/data/FINAL_full_dataset_mass.csv')
+full_dat_tox2=left_join(full_dat_tox, ref_sheet, by=c("ID"))%>%select(-"Title.x", -...1)%>%rename(Title=Title.y)
+full_data=read.csv("https://github.com/patdumandan/RaptorToxicant/blob/main/full_dataset.csv")
+#write.csv(full_dat_tox2, "full_dataset.csv", row.names=FALSE)

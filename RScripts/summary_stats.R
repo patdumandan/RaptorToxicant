@@ -1,3 +1,5 @@
+full_dat=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/full_dataset.csv")
+
 #geography####
 cntry=full_dat%>%
   select(ID, country, toxicant.group)%>%
@@ -8,7 +10,7 @@ group_by(country,ID, toxicant.group)%>%
   distinct(country, stdy)
 
 #country-toxicant
-cntry=full_data%>%
+cntry=full_dat%>%
   select(ID, country, Continent, toxicant.group)%>%
   group_by(toxicant.group, Continent)%>%
   summarise(Records=n_distinct(Continent, ID, toxicant.group))%>%
@@ -16,23 +18,33 @@ cntry=full_data%>%
   arrange(Records)%>%na.omit()
 
 #to locate studies with multiple countries
-cntry%>%group_by(ID)%>%filter(n()>1)%>%arrange()
-
-#species###
-sp=full_data%>%
-  group_by(common_name, ID)%>%
-  summarise(std=n_distinct(common_name, ID))%>%
-
-  distinct(common_name, ID)%>%
+ct=full_dat%>%
+  group_by(country, ID)%>%
+  summarise(std=n_distinct(country, ID))%>%
+  distinct(country, ID)%>%
   mutate(stdy=n())%>%
-  distinct(common_name,stdy)%>% # distinct(common_name,ID,stdy)%>% if want to locate studies
+  distinct(country,ID,stdy)%>% # distinct(common_name,ID,stdy)%>% if want to locate studies
   arrange(stdy)
 
-#to locate studies with multiple species
+repct=ct%>%group_by(ID)%>%filter(n()>1)%>%arrange(ID)
+
+unique(repct$ID)
+
+#species###
+sp=full_dat%>%
+  group_by(common_name, ID)%>%
+  summarise(std=n_distinct(common_name, ID))%>%
+  distinct(common_name, ID)%>%
+  mutate(stdy=n())%>%
+  distinct(common_name,ID,stdy)%>% # distinct(common_name,ID,stdy)%>% if want to locate studies
+  arrange(stdy)
+
 repsp=sp%>%group_by(ID)%>%filter(n()>1)%>%arrange(ID)
 
+unique(repsp$ID)
+
 #toxicant####
-tox=full_data%>%
+tox=full_dat%>%
   group_by(toxicant.group, ID)%>%
   summarise(std=n_distinct(toxicant.group, ID))%>%
   distinct(toxicant.group, ID)%>%
@@ -89,5 +101,3 @@ tox_sam=full_data%>%
 tox_spec=full_data%>%
   distinct(toxicant.specific, toxicant.group)%>%
   arrange(toxicant.group)
-
-write.csv(tox_spec, "toxspec.csv")
