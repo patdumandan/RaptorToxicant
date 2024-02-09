@@ -1,28 +1,21 @@
-#script for analyzing proportion exposed data####
+prop_data=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/full_proportion_dataset.csv")
+#data exploration####
 
-
-#Analysis plan for proportion data:
-# create a beta-binomial model to assess the relationship between exposure to 
-#different toxicants and body mass? (and year? but given how we're acquiring info.
-#on study period, not sure how to go about trend effect.
-
-#NEED TO THINK ABOUT####
-
-#1. should we just build a single model for all types of toxicants 
-#(i.e., exposure to all toxicants in all sample types) or should it be 
-#separate model for each and specific for sample type (e.g., pesticides in liver)?
-
-#2. how do we obtain a single value for study period so we can get trend of exposure over time? 
-
-#3. do we want to estimate the effect of diet on probability of exposure too?
-
-#read data####
-prop_data=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/proportion_data.csv")
+tox_sam=full_data%>%
+  distinct(ID, common_name, sample.type, toxicant.group)%>%
+  group_by(sample.type, toxicant.group)%>%
+  summarise(count=n())%>%
+  arrange(count)
 
 prop_data=prop_data%>%
-  mutate(species=as.integer(as.factor(common_name)), Country=as.integer(as.factor(country)),
-                 study=as.integer(as.factor(Title)),
-         as.integer(as.factor(toxicant.group)))
+  mutate(toxicant.group=recode(toxicant.group, "pesticides"="organochlorine insecticides", "PCB"="PCBs"))%>%
+  filter(!(toxicant.group %in%c("unknown", "0")), !is.na(toxicant.group))%>%
+  mutate(Age=recode(Age.Class,"adult"="2", "Adult"="2", "SY"="2", "ASY"="2", "HY"="1", "egg(s)"="1", 
+                    "juvenile"="1", "unknown"="2", "unknown/mixed"="2"))
+
+write.csv(prop_data, "proportion_data.csv")
+
+
 
 AR_dat=prop_data%>%filter(toxicant.group=="anticoagulant rodenticides")
 OC_dat=prop_data%>%filter(toxicant.group=="organochlorine insecticides")
@@ -146,3 +139,60 @@ transformed parameters{
  
   }
 ",data=dat_list, chains=4, iter=300)
+
+#data visualization####
+#proportion~tox.group
+graph <- ggplot(prop_data, aes(x = toxicant.group, y = proportion)) +
+  geom_boxplot() +
+  geom_jitter(size = 1, alpha = 0.5, width = 0.25, colour = 'black') +
+  theme_classic() + 
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+graph
+
+#proportion~body mass
+graph <- ggplot(prop_data, aes(x = BodyMass.Value, y = proportion)) +
+  geom_point() +facet_wrap(~toxicant.group)+
+  geom_jitter(size = 1, alpha = 0.5, width = 0.25, colour = 'black') +
+  theme_classic() + stat_smooth(method='lm')+
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+graph
+
+#proportion~Diet.Scav
+
+graph <- ggplot(prop_data, aes(x = Diet.Scav, y = proportion)) +
+  geom_point() +facet_wrap(~toxicant.group)+
+  geom_jitter(size = 1, alpha = 0.5, width = 0.25, colour = 'black') +
+  theme_classic() + stat_smooth(method='lm')+
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+graph
+
+#proportion~Diet.Inv
+graph <- ggplot(prop_data, aes(x = Diet.Inv, y = proportion)) +
+  geom_point() +facet_wrap(~toxicant.group)+
+  geom_jitter(size = 1, alpha = 0.5, width = 0.25, colour = 'black') +
+  theme_classic() + stat_smooth(method='lm')+
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+graph
+
+#proportion~phylogeny
+
+graph <- ggplot(prop_data, aes(x = BLFamilyLatin, y = proportion)) +
+  geom_point() +facet_wrap(~toxicant.group)+
+  geom_jitter(size = 1, alpha = 0.5, width = 0.25, colour = 'black')
+graph

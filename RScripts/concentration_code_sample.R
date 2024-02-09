@@ -1,17 +1,11 @@
-full_dat=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/FINAL_full_data.csv")
-trait_dat=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/data/raptor_traits.csv")
+conc_traits=read.csv("https://raw.githubusercontent.com/patdumandan/RaptorToxicant/main/full_concentration_dataset.csv")
 
-conc_traits=left_join(full_dat, trait_dat, by=c("common_name"))%>%
-  select(ID,Title, country, BLFamilyLatin, common_name,subject.type, Age.Class,
-         toxicant.specific, toxicant.group,
-         sample.type, sample.size, exposed, BodyMass.Value, Diet.Inv, Diet.Scav,
-         concentration..ND.for.non.detects., unit.of.measure)%>%
-  mutate(concentration=as.numeric(concentration..ND.for.non.detects.),
-         spcode=as.integer(as.factor(common_name)),
-         ctcode=as.integer(as.factor(country)))%>%
-  select(-concentration..ND.for.non.detects.)
+#standardize trait data####
 
-str(conc_traits)
+conc_traits$mass= scale(conc_traits$BodyMass.Value, center=T, scale=T)
+conc_traits$inv= scale(conc_traits$Diet.Inv, center=T, scale=T)
+conc_traits$scav= scale(conc_traits$Diet.Scav, center=T, scale=T)
+
 
 #24 studies if we use only ng/g data
 
